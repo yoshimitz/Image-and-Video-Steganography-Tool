@@ -17,7 +17,17 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
+private slots:
+    void onEncodeSelectFileButtonClicked();
+    void onEncodeSelectMediaButtonClicked();
+    void onEncodeGoButtonClicked();
+
+    void onDecodeSelectMediaButtonClicked();
+    void onDecodeGoButtonClicked();
+
+
 private:
     Ui::MainWindow *ui;
+    void setupClickedEvents();
 };
 #endif // MAINWINDOW_H

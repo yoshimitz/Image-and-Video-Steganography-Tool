@@ -12,6 +12,19 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
 
+find_package(OpenCV REQUIRED)
+include_directories(${OpenCV_INCLUDE_DIRS})
+
+# Find the Crypto++ library
+find_library(CRYPTOPP_LIBRARY cryptopp)
+find_path(CRYPTOPP_INCLUDE_DIR cryptlib.h)
+
+# Ensure that the library was found
+if(NOT CRYPTOPP_LIBRARY)
+    message(FATAL_ERROR "Could not find Crypto++ library")
+endif()
+
+
 set(PROJECT_SOURCES
         main.cpp
         mainwindow.cpp
@@ -23,6 +36,11 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(Image-and-Video-Steganography-Tool
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
+        stego.h stego.cpp
+        StegoAlgo.h
+        EdgeDetectionType.h
+        StegoStatus.h
+        edgedetection.h edgedetection.cpp
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET Image-and-Video-Steganography-Tool APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
@@ -42,8 +60,7 @@ else()
     endif()
 endif()
 
-target_link_libraries(Image-and-Video-Steganography-Tool PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
-
+target_link_libraries(Image-and-Video-Steganography-Tool PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${OpenCV_LIBS} ${CRYPTOPP_LIBRARY})
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an
 # explicit, fixed bundle identifier manually though.
