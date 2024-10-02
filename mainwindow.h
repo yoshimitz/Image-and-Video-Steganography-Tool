@@ -1,6 +1,9 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include "stegoapiclient.h"
+
+#include <QListWidgetItem>
 #include <QMainWindow>
 
 QT_BEGIN_NAMESPACE
@@ -25,9 +28,13 @@ private slots:
     void onDecodeSelectMediaButtonClicked();
     void onDecodeGoButtonClicked();
 
-
+    void onWebLoginPushButtonClicked();
+    void onWebRegisterPushButtonClicked();
+    void onListItemDoubleClicked(QListWidgetItem* item);
 private:
     Ui::MainWindow *ui;
+    StegoApiClient apiClient;
+
     void setupClickedEvents();
 };
 #endif // MAINWINDOW_H

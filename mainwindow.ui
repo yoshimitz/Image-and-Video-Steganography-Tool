@@ -39,7 +39,7 @@
     </sizepolicy>
    </property>
    <layout class="QGridLayout" name="gridLayout">
-    <item row="0" column="0">
+    <item row="0" column="1">
      <widget class="QTabWidget" name="tabWidget">
       <property name="currentIndex">
        <number>0</number>
@@ -65,14 +65,14 @@
         </property>
         <layout class="QVBoxLayout" name="verticalLayout">
          <property name="sizeConstraint">
-          <enum>QLayout::SetDefaultConstraint</enum>
+          <enum>QLayout::SizeConstraint::SetDefaultConstraint</enum>
          </property>
          <item>
           <layout class="QHBoxLayout" name="horizontalLayout_6">
            <property name="sizeConstraint">
-            <enum>QLayout::SetDefaultConstraint</enum>
+            <enum>QLayout::SizeConstraint::SetDefaultConstraint</enum>
            </property>
-           <item alignment="Qt::AlignVCenter">
+           <item alignment="Qt::AlignmentFlag::AlignVCenter">
             <widget class="QTextEdit" name="encodeSelectMediaTextEdit">
              <property name="maximumSize">
               <size>
@@ -88,7 +88,7 @@
              </property>
             </widget>
            </item>
-           <item alignment="Qt::AlignLeft|Qt::AlignVCenter">
+           <item alignment="Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter">
             <widget class="QPushButton" name="encodeSelectMediaButton">
              <property name="minimumSize">
               <size>
@@ -111,7 +111,7 @@
          </item>
          <item>
           <layout class="QHBoxLayout" name="horizontalLayout_4">
-           <item alignment="Qt::AlignVCenter">
+           <item alignment="Qt::AlignmentFlag::AlignVCenter">
             <widget class="QTextEdit" name="encodeSelectFileTextEdit">
              <property name="maximumSize">
               <size>
@@ -150,7 +150,7 @@
          </item>
          <item>
           <layout class="QHBoxLayout" name="horizontalLayout_3">
-           <item alignment="Qt::AlignVCenter">
+           <item alignment="Qt::AlignmentFlag::AlignVCenter">
             <widget class="QComboBox" name="encodeStegoAlgoComboBox">
              <item>
               <property name="text">
@@ -164,7 +164,7 @@
              </item>
             </widget>
            </item>
-           <item alignment="Qt::AlignVCenter">
+           <item alignment="Qt::AlignmentFlag::AlignVCenter">
             <widget class="QComboBox" name="encodeEdgeDetectionComboBox">
              <item>
               <property name="text">
@@ -194,14 +194,14 @@
                <item>
                 <widget class="QLineEdit" name="encodePasswordLineEdit">
                  <property name="echoMode">
-                  <enum>QLineEdit::Password</enum>
+                  <enum>QLineEdit::EchoMode::Password</enum>
                  </property>
                  <property name="placeholderText">
                   <string>Enter Password</string>
                  </property>
                 </widget>
                </item>
-               <item alignment="Qt::AlignVCenter">
+               <item alignment="Qt::AlignmentFlag::AlignVCenter">
                 <widget class="QCheckBox" name="encodeEncryptionCheckbox">
                  <property name="text">
                   <string>Encrypt?</string>
@@ -212,7 +212,32 @@
              </item>
              <item>
               <layout class="QHBoxLayout" name="horizontalLayout_5">
+               <property name="spacing">
+                <number>0</number>
+               </property>
+               <property name="sizeConstraint">
+                <enum>QLayout::SizeConstraint::SetDefaultConstraint</enum>
+               </property>
+               <property name="leftMargin">
+                <number>0</number>
+               </property>
+               <property name="rightMargin">
+                <number>0</number>
+               </property>
                <item>
+                <spacer name="horizontalSpacer_2">
+                 <property name="orientation">
+                  <enum>Qt::Orientation::Horizontal</enum>
+                 </property>
+                 <property name="sizeHint" stdset="0">
+                  <size>
+                   <width>40</width>
+                   <height>20</height>
+                  </size>
+                 </property>
+                </spacer>
+               </item>
+               <item alignment="Qt::AlignmentFlag::AlignLeft">
                 <widget class="QPushButton" name="encodeGoButton">
                  <property name="maximumSize">
                   <size>
@@ -224,6 +249,48 @@
                   <string>Go</string>
                  </property>
                 </widget>
+               </item>
+               <item>
+                <spacer name="horizontalSpacer_3">
+                 <property name="orientation">
+                  <enum>Qt::Orientation::Horizontal</enum>
+                 </property>
+                 <property name="sizeType">
+                  <enum>QSizePolicy::Policy::Fixed</enum>
+                 </property>
+                 <property name="sizeHint" stdset="0">
+                  <size>
+                   <width>40</width>
+                   <height>20</height>
+                  </size>
+                 </property>
+                </spacer>
+               </item>
+               <item>
+                <widget class="QCheckBox" name="uploadCheckBox">
+                 <property name="maximumSize">
+                  <size>
+                   <width>80</width>
+                   <height>16777215</height>
+                  </size>
+                 </property>
+                 <property name="text">
+                  <string>Upload?</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <spacer name="horizontalSpacer">
+                 <property name="orientation">
+                  <enum>Qt::Orientation::Horizontal</enum>
+                 </property>
+                 <property name="sizeHint" stdset="0">
+                  <size>
+                   <width>40</width>
+                   <height>20</height>
+                  </size>
+                 </property>
+                </spacer>
                </item>
               </layout>
              </item>
@@ -249,14 +316,14 @@
         </property>
         <layout class="QVBoxLayout" name="verticalLayout_3">
          <property name="sizeConstraint">
-          <enum>QLayout::SetDefaultConstraint</enum>
+          <enum>QLayout::SizeConstraint::SetDefaultConstraint</enum>
          </property>
          <item>
           <layout class="QHBoxLayout" name="horizontalLayout_7">
            <property name="sizeConstraint">
-            <enum>QLayout::SetDefaultConstraint</enum>
+            <enum>QLayout::SizeConstraint::SetDefaultConstraint</enum>
            </property>
-           <item alignment="Qt::AlignVCenter">
+           <item alignment="Qt::AlignmentFlag::AlignVCenter">
             <widget class="QTextEdit" name="decodeSelectMediaTextEdit">
              <property name="maximumSize">
               <size>
@@ -272,7 +339,7 @@
              </property>
             </widget>
            </item>
-           <item alignment="Qt::AlignLeft|Qt::AlignVCenter">
+           <item alignment="Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter">
             <widget class="QPushButton" name="decodeSelectMediaButton">
              <property name="minimumSize">
               <size>
@@ -302,14 +369,14 @@
                <item>
                 <widget class="QLineEdit" name="decodePasswordLineEdit">
                  <property name="echoMode">
-                  <enum>QLineEdit::Password</enum>
+                  <enum>QLineEdit::EchoMode::Password</enum>
                  </property>
                  <property name="placeholderText">
                   <string>Enter Password</string>
                  </property>
                 </widget>
                </item>
-               <item alignment="Qt::AlignVCenter">
+               <item alignment="Qt::AlignmentFlag::AlignVCenter">
                 <widget class="QCheckBox" name="decodeEncryptionCheckbox">
                  <property name="text">
                   <string>Encrypted?</string>
@@ -340,6 +407,148 @@
           </layout>
          </item>
         </layout>
+       </widget>
+      </widget>
+      <widget class="QWidget" name="webTab">
+       <attribute name="title">
+        <string>Web</string>
+       </attribute>
+       <widget class="QStackedWidget" name="stackedWidget">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>30</y>
+          <width>761</width>
+          <height>331</height>
+         </rect>
+        </property>
+        <property name="currentIndex">
+         <number>1</number>
+        </property>
+        <widget class="QWidget" name="page2">
+         <widget class="QScrollArea" name="mediaListScrollArea">
+          <property name="geometry">
+           <rect>
+            <x>0</x>
+            <y>0</y>
+            <width>761</width>
+            <height>331</height>
+           </rect>
+          </property>
+          <property name="widgetResizable">
+           <bool>true</bool>
+          </property>
+          <widget class="QWidget" name="scrollAreaWidgetContents">
+           <property name="geometry">
+            <rect>
+             <x>0</x>
+             <y>0</y>
+             <width>759</width>
+             <height>329</height>
+            </rect>
+           </property>
+           <widget class="QListWidget" name="mediaListWidget">
+            <property name="geometry">
+             <rect>
+              <x>0</x>
+              <y>0</y>
+              <width>761</width>
+              <height>331</height>
+             </rect>
+            </property>
+           </widget>
+          </widget>
+         </widget>
+        </widget>
+        <widget class="QWidget" name="page">
+         <widget class="QWidget" name="verticalLayoutWidget">
+          <property name="geometry">
+           <rect>
+            <x>80</x>
+            <y>0</y>
+            <width>611</width>
+            <height>281</height>
+           </rect>
+          </property>
+          <layout class="QVBoxLayout" name="verticalLayout_9">
+           <item>
+            <layout class="QHBoxLayout" name="horizontalLayout_23">
+             <item>
+              <widget class="QLabel" name="label_9">
+               <property name="text">
+                <string>Email:        </string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLineEdit" name="webEmailLineEdit">
+               <property name="placeholderText">
+                <string>Enter Email</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QHBoxLayout" name="horizontalLayout_24">
+             <item>
+              <widget class="QLabel" name="label_10">
+               <property name="text">
+                <string>Password:</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLineEdit" name="webPasswordLineEdit">
+               <property name="echoMode">
+                <enum>QLineEdit::EchoMode::Password</enum>
+               </property>
+               <property name="placeholderText">
+                <string>Enter Password</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QHBoxLayout" name="horizontalLayout_25">
+             <item>
+              <widget class="QPushButton" name="webLoginPushButton">
+               <property name="maximumSize">
+                <size>
+                 <width>80</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <property name="text">
+                <string>Login</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </widget>
+         <widget class="QPushButton" name="webRegisterPushButton">
+          <property name="geometry">
+           <rect>
+            <x>670</x>
+            <y>300</y>
+            <width>80</width>
+            <height>26</height>
+           </rect>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>80</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="text">
+           <string>Register</string>
+          </property>
+         </widget>
+        </widget>
        </widget>
       </widget>
      </widget>

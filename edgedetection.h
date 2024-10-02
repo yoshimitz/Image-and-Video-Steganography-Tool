@@ -12,8 +12,7 @@ class EdgeDetection
 public:
     EdgeDetection();
     StegoStatus DetectEdges(cv::Mat image, EdgeDetectionType edgeDetectionType);
-
-    cv::Mat getMagnitudes() const;
+    cv::Mat GetMagnitudes() const;
 
 private:
     cv::Mat magnitudes;

@@ -4,6 +4,8 @@
 #include <fstream>
 #include <QDebug>
 #include <cstdio>
+#include <QCoreApplication>
+#include <future>
 
 using namespace cv;
 
@@ -27,6 +29,11 @@ uchar clearBit(uchar number, int position)
     return (number & (~(1 << (position))));
 }
 
+int callSystem(std::string command)
+{
+    int result = std::system(command.c_str());
+    return result;
+}
 
 Stego::Stego(std::string filePath, std::string mediaPath, std::string algo, std::string edgeDetection,
              bool bEncrypt, std::string password)
@@ -88,6 +95,12 @@ Stego::~Stego() {
 StegoStatus Stego::EncodeImage()
 {
     Mat image = imread(this->mediaPath, IMREAD_COLOR);
+    if (image.data == NULL)
+    {
+        return StegoStatus::IMAGE_NOT_FOUND;
+    }
+
+    StegoStatus status = StegoStatus::SUCCESS;
 
     if (this->edgeDetectionType != EdgeDetectionType::None)
     {
@@ -95,23 +108,38 @@ StegoStatus Stego::EncodeImage()
         this->edgeDetector.DetectEdges(image, this->edgeDetectionType);
     }
 
+    status = encodeHeader(image);
+    if (status != StegoStatus::SUCCESS)
+    {
+        return status;
+    }
+
     if (this->isFileTooLarge(image))
     {
         return StegoStatus::FILE_TOO_LARGE;
     }
 
-    encodeHeader(image);
-
     if (this->algo == StegoAlgo::LSB)
     {
-        return encodeLsb(image);
+        status = encodeLsb(image);
     }
     else if (this->algo == StegoAlgo::PVD)
     {
-        return encodePvd(image);
+        status = encodePvd();
+        Mat mergedChannels[3] = {blueChannel, greenChannel, redChannel};
+        merge(mergedChannels, 3, image);
     }
 
-    return StegoStatus::SUCCESS;
+    if (status != StegoStatus::SUCCESS)
+    {
+        return status;
+    }
+
+    std::filesystem::create_directory("stego_media");
+    std::string mediaName = std::filesystem::path(this->mediaPath).filename().string();
+    imwrite(std::filesystem::path("stego_media/" + mediaName), image);
+
+    return status;
 }
 
 StegoStatus Stego::EncryptFile()
@@ -136,9 +164,6 @@ StegoStatus Stego::EncryptFile()
 StegoStatus Stego::DecodeImage()
 {
     Mat image = imread(this->mediaPath, IMREAD_COLOR);
-    size_t rowIdx = 0;
-    size_t colIdx = 0;
-
     StegoStatus status = decodeHeader(image);
     if (status != StegoStatus::SUCCESS)
     {
@@ -153,17 +178,237 @@ StegoStatus Stego::DecodeImage()
 
     if (this->algo == StegoAlgo::LSB)
     {
-        return decodeLsb(image);
+        status = decodeLsbFileName(image);
+        if (status != StegoStatus::SUCCESS)
+        {
+            return status;
+        }
     }
     else if (this->algo == StegoAlgo::PVD)
     {
-        return decodePvd(image);
+        status = decodePvdFileName(image);
+        if (status != StegoStatus::SUCCESS)
+        {
+            return status;
+        }
     }
+
+    std::filesystem::create_directory("decoded_files");
+    std::filesystem::path filePath = std::filesystem::path("decoded_files/" + this->fileName);
+    if (this->bEncrypt)
+    {
+        filePath = std::filesystem::path(tempEncryptFilePath);
+    }
+
+    std::ofstream file(filePath, std::ios_base::binary);
+    size_t bytesWritten = 0;
+    std::bitset<8> dataByte;
+    size_t dataByteIndex = 0;
+
+    if (this->algo == StegoAlgo::LSB)
+    {
+        status = decodeLsbFile(image, file, bytesWritten, dataByte, dataByteIndex);
+    }
+    else if (this->algo == StegoAlgo::PVD)
+    {
+        status = decodePvdFile(image, file, bytesWritten, dataByte, dataByteIndex);
+    }
+
+    file.flush();
+    file.close();
 
     return status;
 }
 
+/**
+ * @brief Stego::EncodeVideo Encode stegonographic data into video based on given algorithms.
+ * @return StegoStatus::SUCCESS if encoding was succesful, error code otherwise.
+ */
 StegoStatus Stego::EncodeVideo()
+{
+    VideoCapture video(this->mediaPath);
+    if (!video.isOpened())
+    {
+        qDebug()  << "Could not open video " << this->mediaPath;
+        return StegoStatus::VIDEO_OPEN_FAILED;
+    }
+
+    // Get first video frame
+    Mat frame;
+    video >> frame;
+
+    // Find edges if edge detection enabled
+    if (this->edgeDetectionType != EdgeDetectionType::None)
+    {
+        this->edgeDetector = EdgeDetection();
+        this->edgeDetector.DetectEdges(frame, this->edgeDetectionType);
+    }
+
+    // Encode stego header into first frame of video
+    StegoStatus status = encodeHeader(frame);
+    if (status != StegoStatus::SUCCESS)
+    {
+        return status;
+    }
+
+    std::ifstream file(this->filePath, std::ios_base::binary);
+    std::bitset<8> dataByte;
+    size_t dataByteIndex = 0;
+
+    // Get first byte of file for writing
+    char fileByte;
+    file.get(fileByte);
+    dataByte = std::bitset<8>(fileByte);
+
+    // Create stego media directory, if it does not exist
+    std::filesystem::create_directory("stego_media");
+
+    std::string mediaName = std::filesystem::path(this->mediaPath).filename().string();
+    std::string stegoMediaPath = "stego_media/" + mediaName;
+    std::ostringstream frameName;
+    size_t frameCount = 0;
+    bool bFileNameEmbedded = false;
+
+    while (!frame.empty())
+    {
+        QCoreApplication::processEvents();
+        frameCount++;
+        if (this->edgeDetectionType != EdgeDetectionType::None)
+        {
+            this->edgeDetector.DetectEdges(frame, this->edgeDetectionType);
+        }
+
+        if (this->algo == StegoAlgo::LSB)
+        {
+            if (!bFileNameEmbedded)
+            {
+                status = encodeLsbFileName(frame);
+                if (status == StegoStatus::SUCCESS)
+                {
+                    bFileNameEmbedded = true;
+                }
+                else if (status != StegoStatus::OUT_OF_ROOM)
+                {
+                    return status;
+                }
+            }
+
+
+            if (bFileNameEmbedded)
+            {
+                status = encodeLsbFile(frame, file, dataByte, dataByteIndex);
+                if (status != StegoStatus::SUCCESS)
+                {
+                    return status;
+                }
+            }
+        }
+        else if (this->algo == StegoAlgo::PVD)
+        {
+            // Setup PVD embeddings for frame
+            if (this->edgeDetectionType == EdgeDetectionType::None)
+            {
+                getPvdSequentialSize(frame);
+            }
+            else
+            {
+                getPvdEdgeSize(frame);
+            }
+
+            if (!bFileNameEmbedded)
+            {
+                status = encodePvdFileName();
+                if (status == StegoStatus::SUCCESS)
+                {
+                    bFileNameEmbedded = true;
+                }
+                else if (status != StegoStatus::OUT_OF_ROOM)
+                {
+                    return status;
+                }
+            }
+
+            if (bFileNameEmbedded)
+            {
+                status = encodePvdFile(file, dataByte, dataByteIndex);
+                if (status != StegoStatus::SUCCESS)
+                {
+                    return status;
+                }
+            }
+
+            Mat mergedChannels[3] = {blueChannel, greenChannel, redChannel};
+            merge(mergedChannels, 3, frame);
+        }
+
+        currentRow = 0;
+        currentColumn = 0;
+
+        frameName.str("");
+        frameName.clear();
+        frameName << "frame_" << std::setw(6) << std::setfill('0') << frameCount << ".png";
+        cv::imwrite("stego_media/" + frameName.str(), frame);
+        video >> frame;
+
+        if (file.eof())
+        {
+            break;
+        }
+    }
+
+    // Check if file is at end or just ran out of frames and file is too big
+    if (file.eof())
+    {
+        while (!frame.empty())
+        {
+            QCoreApplication::processEvents();
+            frameCount++;
+            frameName.str("");
+            frameName.clear();
+            frameName << "frame_" << std::setw(6) << std::setfill('0') << frameCount << ".png";
+            cv::imwrite("stego_media/" + frameName.str(), frame);
+            video >> frame;
+        }
+
+        double videoFPS = video.get(CAP_PROP_FPS);
+        std::ostringstream command;
+        command << "ffmpeg -loglevel error -y -framerate " << videoFPS << " -thread_queue_size 512 -i " << "stego_media/frame_%06d.png " << "-thread_queue_size 512 -i \"" << mediaPath << "\" "
+            << "-map 0:v -map 1:a?:0 " << "-c:v ffv1 -pix_fmt bgr0 \"" << stegoMediaPath << "\"";
+
+        std::future<int> future = std::async(std::launch::async, callSystem, command.str());
+
+        while (future.wait_for(std::chrono::milliseconds(100)) != std::future_status::ready)
+        {
+            QCoreApplication::processEvents();
+        }
+
+        int status = future.get();
+        if (status != 0)
+        {
+            std::string deleteCommand = "rm -f stego_media/frame_*.png";
+            std::system(deleteCommand.c_str());
+
+            video.release();
+            file.close();
+
+            return StegoStatus::VIDEO_REENCODING_FAILED;
+        }
+    }
+    else
+    {
+        status = StegoStatus::FILE_TOO_LARGE;
+    }
+
+    std::string deleteCommand = "rm -f stego_media/frame_*.png";
+    std::system(deleteCommand.c_str());
+
+    video.release();
+    file.close();
+
+    return status;
+}
+
+StegoStatus Stego::DecodeVideo()
 {
     VideoCapture video(this->mediaPath);
     if (!video.isOpened())
@@ -174,75 +419,65 @@ StegoStatus Stego::EncodeVideo()
 
     Mat frame;
     video >> frame;
-    encodeHeader(frame);
-
-    if (this->edgeDetectionType != EdgeDetectionType::None)
+    StegoStatus status = decodeHeader(frame);
+    if (status != StegoStatus::SUCCESS)
     {
-        this->edgeDetector = EdgeDetection();
-        this->edgeDetector.DetectEdges(frame, this->edgeDetectionType);
+        return status;
     }
-
-    // Estimate size based on initial frame.
-    if (this->isFileTooLarge(frame, video.get(CAP_PROP_FRAME_COUNT)))
-    {
-        return StegoStatus::FILE_TOO_LARGE;
-    }
-
-    StegoStatus status;
-    std::ifstream file(this->filePath, std::ios_base::binary);
-
-    // Encode file name and file into first frame
-    if (this->algo == StegoAlgo::LSB)
-    {
-        status = encodeLsbFileName(frame);
-        if (status != StegoStatus::SUCCESS)
-        {
-            return status;
-        }
-
-        status = encodeLsbFile(frame, file);
-        if (status != StegoStatus::SUCCESS)
-        {
-            return status;
-        }
-    }
-    else if (this->algo == StegoAlgo::PVD)
-    {
-        // status = encodePvdFileName(frame);
-        if (status != StegoStatus::SUCCESS)
-        {
-            return status;
-        }
-    }
-
-    // Create stego media directory, if it does not exist
-    std::filesystem::create_directory("stego_media");
-
-    // Create video writer for writing encoded frames to.
-    std::string mediaName = std::filesystem::path(this->mediaPath).filename().string();
-    std::string stegoMediaPath = "stego_media/" + mediaName;
-    std::string tempStegoMediaPath = "stego_media/temp_" + mediaName;
-    Size videoSize = Size((int) video.get(CAP_PROP_FRAME_WIDTH), (int) video.get(CAP_PROP_FRAME_HEIGHT));
-    double videoFPS = video.get(CAP_PROP_FPS);
-
-    std::string pipeline = "appsrc ! videoconvert ! x264enc quantizer=0 ! video/x-h264,profile=high ! mp4mux ! filesink location='" + tempStegoMediaPath + "'";
-    cv::VideoWriter outputVideo(pipeline, cv::CAP_GSTREAMER, 0, videoFPS, videoSize, true);
-
-    //outputVideo.open(tempStegoMediaPath, VideoWriter::fourcc('X', '2', '6', '4'),
-    //                videoFPS, videoSize, true);
-
-    if (!outputVideo.isOpened())
-    {
-        qDebug()  << "Could not open video " << this->mediaPath;
-        return StegoStatus::VIDEO_OPEN_FAILED;
-    }
-
-    outputVideo << frame;
-    video >> frame;
-    size_t numFrames = 1;
 
     while (!frame.empty())
     {
+        if (this->edgeDetectionType != EdgeDetectionType::None)
+        {
+            this->edgeDetector = EdgeDetection();
+            this->edgeDetector.DetectEdges(frame, this->edgeDetectionType);
+        }
+
+        if (this->algo == StegoAlgo::LSB)
+        {
+            status = decodeLsbFileName(frame);
+            if (status == StegoStatus::SUCCESS)
+            {
+                break;
+            }
+            else if (status != StegoStatus::OUT_OF_ROOM)
+            {
+                return status;
+            }
+        }
+        else if (this->algo == StegoAlgo::PVD)
+        {
+            status = decodePvdFileName(frame);
+            if (status == StegoStatus::SUCCESS)
+            {
+                break;
+            }
+            else if (status != StegoStatus::OUT_OF_ROOM)
+            {
+                return status;
+            }
+        }
+
+        currentColumn = 0;
+        currentRow = 0;
+        video >> frame;
+    }
+
+    std::filesystem::create_directory("decoded_files");
+    std::filesystem::path filePath = std::filesystem::path("decoded_files/" + this->fileName);
+    if (this->bEncrypt)
+    {
+        filePath = std::filesystem::path(tempEncryptFilePath);
+    }
+
+    std::ofstream file(filePath, std::ios_base::binary);
+    size_t bytesWritten = 0;
+    std::bitset<8> dataByte;
+    size_t dataByteIndex = 0;
+    while (!frame.empty())
+    {
+        QCoreApplication::processEvents();
+
         if (this->edgeDetectionType != EdgeDetectionType::None)
         {
             this->edgeDetector.DetectEdges(frame, this->edgeDetectionType);
@@ -250,7 +485,7 @@ StegoStatus Stego::EncodeVideo()
 
         if (this->algo == StegoAlgo::LSB)
         {
-            status = encodeLsbFile(frame, file);
+            status = decodeLsbFile(frame, file, bytesWritten, dataByte, dataByteIndex);
             if (status != StegoStatus::SUCCESS)
             {
                 return status;
@@ -258,41 +493,27 @@ StegoStatus Stego::EncodeVideo()
         }
         else if (this->algo == StegoAlgo::PVD)
         {
-            return encodePvd(frame);
+            status = decodePvdFile(frame, file, bytesWritten, dataByte, dataByteIndex);
+            if (status != StegoStatus::SUCCESS)
+            {
+                return status;
+            }
         }
 
-        outputVideo << frame;
         video >> frame;
 
-        numFrames++;
-        if (file.eof())
+        if (bytesWritten >= this->fileLength)
         {
             break;
         }
     }
 
-    // Write the rest of the unencoded frames to new file.
-    while (!frame.empty())
+    if (bytesWritten < this->fileLength)
     {
-        outputVideo << frame;
-        video >> frame;
-        numFrames++;
+        return StegoStatus::INVALID_MEDIA;
     }
 
-    video.release();
-    outputVideo.release();
-    file.close();
-
-    //std::string command = "ffmpeg -i " + tempStegoMediaPath + " -i " + this->mediaPath + " -map 0:v -map 1:a -c:v copy -c:a copy " + stegoMediaPath;
-    //std::system(command.c_str());
-
-    return StegoStatus::SUCCESS;
-}
-
-StegoStatus Stego::DecodeVideo()
-{
-
-    return StegoStatus::SUCCESS;
+    return status;
 }
 
 StegoStatus Stego::DecryptFile()
@@ -335,32 +556,53 @@ StegoStatus Stego::encodeLsb(Mat image)
 
     std::ifstream file(this->filePath, std::ios_base::binary);
 
-    status = encodeLsbFile(image, file);
+
+    std::bitset<8> dataByte;
+    size_t dataByteIndex = 0;
+
+    char fileByte;
+    file.get(fileByte);
+    dataByte = std::bitset<8>(fileByte);
+
+    status = encodeLsbFile(image, file, dataByte, dataByteIndex);
     if (status != StegoStatus::SUCCESS)
     {
         return status;
     }
 
-    std::filesystem::create_directory("stego_media");
-    std::string mediaName = std::filesystem::path(this->mediaPath).filename().string();
-    imwrite(std::filesystem::path("stego_media/" + mediaName), image);
     file.close();
 
     return status;
 }
 
-StegoStatus Stego::encodePvd(Mat image)
+StegoStatus Stego::encodePvd()
 {
-    StegoStatus status = encodeLsbFileName(image);
+    StegoStatus status = encodePvdFileName();
     if (status != StegoStatus::SUCCESS)
     {
         return status;
     }
 
-    return encodePvdData();
+    std::ifstream file(this->filePath, std::ios_base::binary);
+    std::bitset<8> dataByte;
+    size_t dataByteIndex = 0;
+
+    char fileByte;
+    file.get(fileByte);
+    dataByte = std::bitset<8>(fileByte);
+
+    status = encodePvdFile(file, dataByte, dataByteIndex);
+    if (status != StegoStatus::SUCCESS)
+    {
+        return status;
+    }
+
+    file.close();
+
+    return status;
 }
 
-void Stego::encodeHeader(Mat image)
+StegoStatus Stego::encodeHeader(Mat image)
 {
     int channels = image.channels();
     int nRows = image.rows;
@@ -418,7 +660,7 @@ void Stego::encodeHeader(Mat image)
     }
 
     // Embed File Name Length in Pixels 2-4
-    uint16_t fileNameLength =  this->fileName.length();
+    this->fileNameLength =  this->fileName.length();
     std::bitset<18> fileNameLengthBits(fileNameLength);
 
     size_t bitPos = 0;
@@ -449,6 +691,7 @@ void Stego::encodeHeader(Mat image)
             bitPos += 2;
             if (bitPos >= fileNameLengthBits.size())
             {
+                currentColumn++;
                 break;
             }
         }
@@ -462,7 +705,16 @@ void Stego::encodeHeader(Mat image)
     }
 
     // Embed File Length in Pixels 5-10
-    uint32_t fileLength = std::filesystem::file_size(this->filePath);
+
+    try
+    {
+        this->fileLength = std::filesystem::file_size(this->filePath);
+    } catch (std::filesystem::filesystem_error& e)
+    {
+        qDebug() << e.what();
+        return StegoStatus::FILE_NOT_FOUND;
+    }
+
     std::bitset<36> fileLengthBits(fileLength);
     bitPos = 0;
     for (; currentRow < nRows; currentRow++)
@@ -488,9 +740,11 @@ void Stego::encodeHeader(Mat image)
                 row[currentColumn] = clearBit(row[currentColumn], 1);
             }
 
+
             bitPos += 2;
             if (bitPos >= fileLengthBits.size())
             {
+                currentColumn++;
                 break;
             }
         }
@@ -502,6 +756,8 @@ void Stego::encodeHeader(Mat image)
 
         currentColumn = 0;
     }
+
+    return StegoStatus::SUCCESS;
 }
 
 StegoStatus Stego::encodeLsbFileName(cv::Mat image)
@@ -520,7 +776,7 @@ StegoStatus Stego::encodeLsbFileName(cv::Mat image)
     size_t edgeCol = 0;
     if (edgeDetectionType != EdgeDetectionType::None)
     {
-        edges = edgeDetector.getMagnitudes();
+        edges = edgeDetector.GetMagnitudes();
         edgeRow = edges.ptr<uchar>(currentRow);
         edgeCol = currentColumn / 3;
     }
@@ -585,7 +841,7 @@ StegoStatus Stego::encodeLsbFileName(cv::Mat image)
     return StegoStatus::SUCCESS;
 }
 
-StegoStatus Stego::encodeLsbFile(Mat image, std::ifstream& file)
+StegoStatus Stego::encodeLsbFile(Mat image, std::ifstream& file, std::bitset<8>& dataByte, size_t& dataByteIndex)
 {
     int channels = image.channels();
     int nRows = image.rows;
@@ -601,20 +857,29 @@ StegoStatus Stego::encodeLsbFile(Mat image, std::ifstream& file)
     size_t edgeCol = 0;
     if (edgeDetectionType != EdgeDetectionType::None)
     {
-        edges = edgeDetector.getMagnitudes();
+        edges = edgeDetector.GetMagnitudes();
         edgeRow = edges.ptr<uchar>(currentRow);
         edgeCol = currentColumn / 3;
     }
 
     uchar* imageRow = image.ptr<uchar>(currentRow);
-
-    std::bitset<8> dataByte;
     char fileByte;
-    while (file.get(fileByte))
+
+    while (true)
     {
-        dataByte = std::bitset<8>(fileByte);
-        size_t j = 0;
-        while (j < dataByte.size())
+        // End of databyte, retrieve new one, otherwise, leftover data from last byte to encode in new frame
+        if (dataByteIndex >= dataByte.size())
+        {
+            if (!file.get(fileByte))
+            {
+                break;
+            }
+
+            dataByte = std::bitset<8>(fileByte);
+            dataByteIndex = 0;
+        }
+
+        while (dataByteIndex < dataByte.size())
         {
             if (edgeDetectionType != EdgeDetectionType::None)
             {
@@ -622,11 +887,25 @@ StegoStatus Stego::encodeLsbFile(Mat image, std::ifstream& file)
                 {
                     currentColumn++;
                     edgeCol = currentColumn / 3;
+                    if (currentColumn >= nCols)
+                    {
+                        currentColumn = 0;
+                        edgeCol = 0;
+                        currentRow++;
+                        if (currentRow >= nRows)
+                        {
+                            break;
+                        }
+
+                        imageRow = image.ptr<uchar>(currentRow);
+                        edgeRow = edges.ptr<uchar>(currentRow);
+                    }
+
                     continue;
                 }
             }
 
-            if (dataByte[j])
+            if (dataByte[dataByteIndex])
             {
                 imageRow[currentColumn] = setBit(imageRow[currentColumn], 0);
             }
@@ -635,7 +914,7 @@ StegoStatus Stego::encodeLsbFile(Mat image, std::ifstream& file)
                 imageRow[currentColumn] = clearBit(imageRow[currentColumn], 0);
             }
 
-            j++;
+            dataByteIndex++;
             currentColumn++;
             edgeCol = currentColumn / 3;
 
@@ -646,8 +925,7 @@ StegoStatus Stego::encodeLsbFile(Mat image, std::ifstream& file)
                 currentRow++;
                 if (currentRow >= nRows)
                 {
-                    // Shouldn't happen. For debugging.
-                    return StegoStatus::OUT_OF_ROOM;
+                    break;
                 }
                 else
                 {
@@ -660,15 +938,17 @@ StegoStatus Stego::encodeLsbFile(Mat image, std::ifstream& file)
                 }
             }
         }
-    }
 
-    currentRow = 0;
-    currentColumn = 0;
+        if (currentRow >= nRows)
+        {
+            break;
+        }
+    }
 
     return StegoStatus::SUCCESS;
 }
 
-StegoStatus Stego::encodePvdData()
+StegoStatus Stego::encodePvdFileName()
 {
     currentColumn = currentColumn / 3;
     int channels = this->blueChannel.channels();
@@ -742,13 +1022,15 @@ StegoStatus Stego::encodePvdData()
                 embedPvdOverhead(blueRow);
             }
 
-            if (fileNameIndex >= fileName.size())
-            {
-                break;
-            }
+
 
             if (edgeDetectionType == EdgeDetectionType::None)
             {
+                if (fileNameIndex >= fileName.size())
+                {
+                    break;
+                }
+
                 numBitsToEmbed = greenEmbedding.at<uchar>(currentRow, currentColumn);
                 if (numBitsToEmbed)
                 {
@@ -835,12 +1117,29 @@ StegoStatus Stego::encodePvdData()
 
     currentColumn += 2;
 
-    std::ifstream file(this->filePath, std::ios_base::binary);
-    char fileByte;
-    file.get(fileByte);
-    dataByte = std::bitset<8>(fileByte);
-    dataByteIndex = 0;
+    return StegoStatus::SUCCESS;
+}
 
+StegoStatus Stego::encodePvdFile(std::ifstream& file, std::bitset<8>& dataByte, size_t& dataByteIndex)
+{
+    int channels = this->blueChannel.channels();
+    int nRows = this->blueChannel.rows;
+    int nCols = this->blueChannel.cols * channels;
+    if (this->blueChannel.isContinuous())
+    {
+        nCols *= nRows;
+        nRows = 1;
+    }
+
+    uchar* blueRow;
+    uchar* greenRow;
+    uchar* redRow;
+    size_t numBitsToEmbed;
+
+    std::bitset<7> embeddingNumber = std::bitset<7>();
+
+    char fileByte;
+    size_t bytesWritten = 0;
     for (; currentRow < nRows; currentRow++)
     {
         if (file.fail())
@@ -882,6 +1181,7 @@ StegoStatus Stego::encodePvdData()
                             break;
                         }
 
+
                         dataByte = std::bitset<8>(fileByte);
                     }
                 }
@@ -894,13 +1194,13 @@ StegoStatus Stego::encodePvdData()
                 embedPvdOverhead(blueRow);
             }
 
-            if (file.fail())
-            {
-                break;
-            }
-
             if (edgeDetectionType == EdgeDetectionType::None)
             {
+                if (file.fail())
+                {
+                    break;
+                }
+
                 numBitsToEmbed = greenEmbedding.at<uchar>(currentRow, currentColumn);
                 if (numBitsToEmbed)
                 {
@@ -981,16 +1281,6 @@ StegoStatus Stego::encodePvdData()
         currentColumn = 0;
     }
 
-    file.close();
-
-    Mat mergedChannels[3] = {blueChannel, greenChannel, redChannel};
-    Mat mergedImage;
-    merge(mergedChannels, 3, mergedImage);
-
-    std::filesystem::create_directory("stego_media");
-    std::string mediaName = std::filesystem::path(this->mediaPath).filename().string();
-    imwrite(std::filesystem::path("stego_media/" + mediaName), mergedImage);
-
     return StegoStatus::SUCCESS;
 }
 
@@ -1013,7 +1303,7 @@ uint32_t Stego::getLsbSequentialSize(Mat image)
  */
 uint32_t Stego::getLsbEdgeSize()
 {
-    uint32_t numPixels = cv::countNonZero(edgeDetector.getMagnitudes());
+    uint32_t numPixels = cv::countNonZero(edgeDetector.GetMagnitudes());
     return (numPixels * LSB_BITS_PER_PIXEL) / BITS_PER_BYTE;
 }
 
@@ -1044,7 +1334,7 @@ uint32_t Stego::getPvdEdgeSize(cv::Mat image)
 
     calculatePvdEmbeddings();
 
-    const Mat magnitudes = edgeDetector.getMagnitudes();
+    const Mat magnitudes = edgeDetector.GetMagnitudes();
     int numChannels = magnitudes.channels();
     int nRows = magnitudes.rows;
     int nCols = magnitudes.cols * numChannels;
@@ -1463,6 +1753,7 @@ StegoStatus Stego::decodeHeader(Mat image)
             bitPos += 2;
             if (bitPos >= fileNameLengthBits.size())
             {
+                currentColumn++;
                 break;
             }
         }
@@ -1491,6 +1782,7 @@ StegoStatus Stego::decodeHeader(Mat image)
             bitPos += 2;
             if (bitPos >= fileLengthBits.size())
             {
+                currentColumn++;
                 break;
             }
         }
@@ -1508,7 +1800,7 @@ StegoStatus Stego::decodeHeader(Mat image)
     return StegoStatus::SUCCESS;
 }
 
-StegoStatus Stego::decodeLsb(Mat image)
+StegoStatus Stego::decodeLsbFileName(cv::Mat image)
 {
     int channels = image.channels();
     int nRows = image.rows;
@@ -1529,10 +1821,12 @@ StegoStatus Stego::decodeLsb(Mat image)
     size_t edgeCol = 0;
     if (edgeDetectionType != EdgeDetectionType::None)
     {
-        edges = edgeDetector.getMagnitudes();
+        edges = edgeDetector.GetMagnitudes();
         edgeRow = edges.ptr<uchar>(currentRow);
         edgeCol = currentColumn / 3;
     }
+
+    this->fileName = "";
 
     for (size_t i = 0; i < this->fileNameLength; i++)
     {
@@ -1580,20 +1874,43 @@ StegoStatus Stego::decodeLsb(Mat image)
         this->fileName += static_cast<uchar>(dataByte.to_ulong());
     }
 
-    std::filesystem::create_directory("decoded_files");
-    std::filesystem::path filePath = std::filesystem::path("decoded_files/" + this->fileName);
-    if (this->bEncrypt)
+    return StegoStatus::SUCCESS;
+}
+
+StegoStatus Stego::decodeLsbFile(Mat image, std::ofstream& file, size_t& bytesWritten, std::bitset<8>& dataByte, size_t& dataByteIndex)
+{
+    int channels = image.channels();
+    int nRows = image.rows;
+    int nCols = image.cols * channels;
+    if (image.isContinuous())
     {
-        filePath = std::filesystem::path(tempEncryptFilePath);
+        nCols *= nRows;
+        nRows = 1;
     }
 
-    std::ofstream file(filePath, std::ios_base::binary);
+    uchar* row = image.ptr<uchar>(currentRow);
 
-    for (size_t i = 0; i < this->fileLength; i++)
+    std::bitset<8> intensity;
+
+    Mat edges;
+    uchar* edgeRow;
+    size_t edgeCol = 0;
+    if (edgeDetectionType != EdgeDetectionType::None)
     {
-        dataByte.reset();
-        size_t j = 0;
-        while (j < dataByte.size())
+        edges = edgeDetector.GetMagnitudes();
+        edgeRow = edges.ptr<uchar>(currentRow);
+        edgeCol = currentColumn / 3;
+    }
+
+    while (bytesWritten < fileLength)
+    {
+        if (dataByteIndex >= dataByte.size())
+        {
+            dataByte.reset();
+            dataByteIndex = 0;
+        }
+
+        while (dataByteIndex < dataByte.size())
         {
             if (edgeDetectionType != EdgeDetectionType::None)
             {
@@ -1601,16 +1918,30 @@ StegoStatus Stego::decodeLsb(Mat image)
                 {
                     currentColumn++;
                     edgeCol = currentColumn / 3;
+                    if (currentColumn >= nCols)
+                    {
+                        currentColumn = 0;
+                        edgeCol = 0;
+                        currentRow++;
+                        if (currentRow >= nRows)
+                        {
+                            break;
+                        }
+
+                        edgeRow = edges.ptr<uchar>(currentRow);
+                        row = image.ptr<uchar>(currentRow);
+                    }
+
                     continue;
                 }
             }
 
             intensity = std::bitset<8>(row[currentColumn]);
-            dataByte[j] = intensity[0];
+            dataByte[dataByteIndex] = intensity[0];
 
             currentColumn++;
             edgeCol = currentColumn / 3;
-            j++;
+            dataByteIndex++;
 
             if (currentColumn >= nCols)
             {
@@ -1619,22 +1950,40 @@ StegoStatus Stego::decodeLsb(Mat image)
                 currentRow++;
                 if (currentRow >= nRows)
                 {
-                    // Shouldn't happen. For debugging.
-                    return StegoStatus::OUT_OF_ROOM;
+                    break;
                 }
+
+                if (edgeDetectionType != EdgeDetectionType::None)
+                {
+
+                    edgeRow = edges.ptr<uchar>(currentRow);
+                }
+
+                row = image.ptr<uchar>(currentRow);
             }
         }
 
+        // didn't get a whole databyte after finishing frame yet
+        if (dataByteIndex < dataByte.size())
+        {
+            break;
+        }
+
         file.put(static_cast<uchar>(dataByte.to_ulong()));
+        bytesWritten++;
+        if (bytesWritten >= this->fileLength || currentRow >= nRows)
+        {
+            break;
+        }
     }
 
-    file.flush();
-    file.close();
+    currentColumn = 0;
+    currentRow = 0;
 
     return StegoStatus::SUCCESS;
 }
 
-StegoStatus Stego::decodePvd(cv::Mat image)
+StegoStatus Stego::decodePvdFileName(cv::Mat image)
 {
     currentColumn /= 3;
     Mat colours[3];
@@ -1665,6 +2014,8 @@ StegoStatus Stego::decodePvd(cv::Mat image)
     std::bitset<8> differenceBinary;
     size_t lowerBound;
     size_t numBitsPerBlock;
+
+    this->fileName = "";
 
     for (; currentRow < nRows; currentRow++)
     {
@@ -1853,15 +2204,37 @@ StegoStatus Stego::decodePvd(cv::Mat image)
     }
 
     currentColumn += 2;
-    std::filesystem::create_directory("decoded_files");
-    std::filesystem::path filePath = std::filesystem::path("decoded_files/" + this->fileName);
-    if (this->bEncrypt)
+    return StegoStatus::SUCCESS;
+}
+
+StegoStatus Stego::decodePvdFile(cv::Mat image, std::ofstream& file, size_t& bytesWritten, std::bitset<8>& dataByte, size_t& dataByteIndex)
+{
+    Mat colours[3];
+    split(image, colours);
+
+    this->blueChannel = colours[0];
+    this->greenChannel = colours[1];
+    this->redChannel = colours[2];
+
+    int channels = blueChannel.channels();
+    int nRows = blueChannel.rows;
+    int nCols = blueChannel.cols * channels;
+    if (blueChannel.isContinuous())
     {
-        filePath = std::filesystem::path(tempEncryptFilePath);
+        nCols *= nRows;
+        nRows = 1;
     }
 
-    std::ofstream file(filePath, std::ios_base::binary);
-    uint32_t bytesWritten = 0;
+    uchar* blueRow;
+    uchar* greenRow;
+    uchar* redRow;
+
+    uchar firstColourValue;
+    uchar secondColourValue;
+    uchar rangeDifference;
+    std::bitset<8> differenceBinary;
+    size_t lowerBound;
+    size_t numBitsPerBlock;
 
     for (; currentRow < nRows; currentRow++)
     {
@@ -2047,8 +2420,8 @@ StegoStatus Stego::decodePvd(cv::Mat image)
         }
     }
 
-    file.flush();
-    file.close();
+    currentRow = 0;
+    currentColumn = 0;
 
     return StegoStatus::SUCCESS;
 }

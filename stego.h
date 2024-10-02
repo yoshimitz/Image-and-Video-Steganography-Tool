@@ -107,11 +107,12 @@ private:
     EdgeDetection edgeDetector;
 
     StegoStatus encodeLsb(cv::Mat image);
-    StegoStatus encodePvd(cv::Mat image);
-    void encodeHeader(cv::Mat image);
+    StegoStatus encodePvd();
+    StegoStatus encodeHeader(cv::Mat image);
     StegoStatus encodeLsbFileName(cv::Mat image);
-    StegoStatus encodeLsbFile(cv::Mat image, std::ifstream& file);
-    StegoStatus encodePvdData();
+    StegoStatus encodePvdFileName();
+    StegoStatus encodeLsbFile(cv::Mat image, std::ifstream& file, std::bitset<8>& dataByte, size_t& dataByteIndex);
+    StegoStatus encodePvdFile(std::ifstream& file, std::bitset<8>& dataByte, size_t& dataByteIndex);
     uint32_t getLsbSequentialSize(cv::Mat image);
     uint32_t getLsbEdgeSize();
     uint32_t getPvdSequentialSize(cv::Mat image);
@@ -123,8 +124,10 @@ private:
     std::pair<int, int> calculateNewPvdPixelPairs(int firstValue, int secondValue, int difference, int newDifference, double embed);
 
     StegoStatus decodeHeader(cv::Mat image);
-    StegoStatus decodeLsb(cv::Mat image);
-    StegoStatus decodePvd(cv::Mat image);
+    StegoStatus decodeLsbFileName(cv::Mat image);
+    StegoStatus decodeLsbFile(cv::Mat image, std::ofstream& file, size_t& bytesWritten, std::bitset<8>& dataByte, size_t& dataByteIndex);
+    StegoStatus decodePvdFileName(cv::Mat image);
+    StegoStatus decodePvdFile(cv::Mat image, std::ofstream& file, size_t& bytesWritten, std::bitset<8>& dataByte, size_t& dataByteIndex);
 };
 
 #endif // STEGO_H

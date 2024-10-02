@@ -9,8 +9,8 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets Quick QuickControls2 Test)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Quick QuickControls2 Test)
 
 find_package(OpenCV REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
@@ -24,12 +24,29 @@ if(NOT CRYPTOPP_LIBRARY)
     message(FATAL_ERROR "Could not find Crypto++ library")
 endif()
 
+include(FetchContent)
+FetchContent_Declare(cpr GIT_REPOSITORY https://github.com/libcpr/cpr.git
+                         GIT_TAG 3b15fa82ea74739b574d705fea44959b58142eb8)
+FetchContent_MakeAvailable(cpr)
+
+FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
+                     DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+FetchContent_MakeAvailable(json)
 
 set(PROJECT_SOURCES
         main.cpp
         mainwindow.cpp
         mainwindow.h
         mainwindow.ui
+)
+
+set(TEST_SOURCES
+   Test/UnitTests.cpp
+   stego.h stego.cpp
+   StegoAlgo.h
+   EdgeDetectionType.h
+   StegoStatus.h
+   edgedetection.h edgedetection.cpp
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -41,6 +58,10 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         EdgeDetectionType.h
         StegoStatus.h
         edgedetection.h edgedetection.cpp
+        stegoapiclient.h stegoapiclient.cpp
+        LICENSE
+        base64.hpp
+
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET Image-and-Video-Steganography-Tool APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
@@ -60,7 +81,7 @@ else()
     endif()
 endif()
 
-target_link_libraries(Image-and-Video-Steganography-Tool PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${OpenCV_LIBS} ${CRYPTOPP_LIBRARY})
+target_link_libraries(Image-and-Video-Steganography-Tool PRIVATE Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::Quick Qt${QT_VERSION_MAJOR}::QuickControls2 Qt${QT_VERSION_MAJOR}::Test ${OpenCV_LIBS} ${CRYPTOPP_LIBRARY} cpr::cpr nlohmann_json::nlohmann_json)
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an
 # explicit, fixed bundle identifier manually though.
@@ -82,6 +103,21 @@ install(TARGETS Image-and-Video-Steganography-Tool
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
+enable_testing()
+qt_add_executable(
+    Image-and-Video-Steganography-Tool-Tests
+    ${TEST_SOURCES}
+)
+
+add_test(NAME UnitTests COMMAND Image-and-Video-Steganography-Tool-Tests)
+target_link_libraries(Image-and-Video-Steganography-Tool-Tests PRIVATE Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::Quick Qt${QT_VERSION_MAJOR}::QuickControls2 Qt${QT_VERSION_MAJOR}::Test ${OpenCV_LIBS} ${CRYPTOPP_LIBRARY})
+
 if(QT_VERSION_MAJOR EQUAL 6)
     qt_finalize_executable(Image-and-Video-Steganography-Tool)
 endif()
+
+add_custom_command(
+    TARGET Image-and-Video-Steganography-Tool-Tests POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/Test/TestData" "$<TARGET_FILE_DIR:Image-and-Video-Steganography-Tool-Tests>/"
+)

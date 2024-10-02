@@ -63,7 +63,7 @@ StegoStatus EdgeDetection::DetectEdges(cv::Mat image, EdgeDetectionType edgeDete
     return status;
 }
 
-cv::Mat EdgeDetection::getMagnitudes() const
+cv::Mat EdgeDetection::GetMagnitudes() const
 {
     return magnitudes;
 }
