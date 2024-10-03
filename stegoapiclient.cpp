@@ -82,7 +82,7 @@ long StegoApiClient::Download(int index)
 
     cpr::AsyncResponse futureResponse = cpr::DownloadAsync(cpr::fs::path{"stego_media/" + nameList.at(index).toStdString()}, url, cpr::Bearer{this->apiToken}, sslOpts);
 
-    while (futureResponse.wait_for(std::chrono::milliseconds(200)) != std::future_status::ready)
+    while (futureResponse.wait_for(std::chrono::milliseconds(100)) != std::future_status::ready)
     {
         QCoreApplication::processEvents();
     }
@@ -104,14 +104,14 @@ long StegoApiClient::Upload(std::string name, std::istream& file)
                                        cpr::Body{body},
                                        sslOpts);
 
-    while (futureResponse.wait_for(std::chrono::milliseconds(200)) != std::future_status::ready)
+    while (futureResponse.wait_for(std::chrono::milliseconds(100)) != std::future_status::ready)
     {
         QCoreApplication::processEvents();
     }
 
     cpr::Response response = futureResponse.get();
 
-    if (response.status_code != 200)
+    if (response.status_code != 201)
     {
         qDebug() << response.error.message;
     }

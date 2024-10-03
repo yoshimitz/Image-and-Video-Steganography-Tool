@@ -40,7 +40,7 @@ void MainWindow::setupClickedEvents()
 
 void MainWindow::onEncodeSelectFileButtonClicked()
 {
-    QString fileName = QFileDialog::getOpenFileName(this, tr("Select File to Encode"), "/home/", tr("Files (*)"));
+    QString fileName = QFileDialog::getOpenFileName(this, tr("Select File to Encode"), QDir::homePath(), tr("Files (*)"));
 
     if (!fileName.isNull())
     {
@@ -50,7 +50,7 @@ void MainWindow::onEncodeSelectFileButtonClicked()
 
 void MainWindow::onEncodeSelectMediaButtonClicked()
 {
-    QString fileName = QFileDialog::getOpenFileName(this, tr("Select Image/Video to Encode"), "/home/",
+    QString fileName = QFileDialog::getOpenFileName(this, tr("Select Image/Video to Encode"), QDir::homePath(),
                                                     tr("Image/Video Files (*.png *.mkv)"));
 
     if (!fileName.isNull())
@@ -110,6 +110,8 @@ void MainWindow::onEncodeGoButtonClicked()
         password = passwordText.toStdString();
     }
 
+    QCoreApplication::processEvents();
+
     std::string stegoAlgo = ui->encodeStegoAlgoComboBox->currentText().toStdString();
     std::string edgeDetection = ui->encodeEdgeDetectionComboBox->currentText().toStdString();
 
@@ -147,6 +149,8 @@ void MainWindow::onEncodeGoButtonClicked()
         status = stego.EncodeVideo();
     }
 
+    QCoreApplication::processEvents();
+
     if (ui->uploadCheckBox->isChecked() && status == StegoStatus::SUCCESS)
     {
         std::string mediaName = std::filesystem::path(mediaPath.toStdString()).filename().string();
@@ -160,9 +164,10 @@ void MainWindow::onEncodeGoButtonClicked()
             return;
         }
 
+        progressDialog->setLabelText("Uploading...");
         std::ifstream file(stegoMediaPath, std::ios_base::binary);
         long result = apiClient.Upload(mediaName, file);
-        if (result != 200)
+        if (result != 201)
         {
             file.close();
             QMetaObject::invokeMethod(progressDialog, "reset");
@@ -211,7 +216,7 @@ void MainWindow::onEncodeGoButtonClicked()
 
 void MainWindow::onDecodeSelectMediaButtonClicked()
 {
-    QString fileName = QFileDialog::getOpenFileName(this, tr("Select Image/Video to Decode"), "/home/",
+    QString fileName = QFileDialog::getOpenFileName(this, tr("Select Image/Video to Decode"), QDir::homePath(),
                                                     tr("Image/Video Files (*.png *.mkv)"));
 
     if (!fileName.isNull())
@@ -362,17 +367,28 @@ void MainWindow::onWebLoginPushButtonClicked()
 
 void MainWindow::onWebRegisterPushButtonClicked()
 {
-    QDesktopServices::openUrl(QUrl("https://192.168.50.190:44327/Identity/Account/Register", QUrl::TolerantMode));
+    QDesktopServices::openUrl(QUrl("https://steganographywebapp20240927173619.azurewebsites.net/Identity/Account/Register", QUrl::TolerantMode));
 }
 
 void MainWindow::onListItemDoubleClicked(QListWidgetItem* item)
 {
+    QProgressDialog *progressDialog = new QProgressDialog("Downloading...", "Cancel", 0, 0, this);
+    progressDialog->setWindowModality(Qt::ApplicationModal);
+    progressDialog->setWindowFlag(Qt::FramelessWindowHint);
+    progressDialog->setCancelButton(nullptr);
+    progressDialog->setMinimumDuration(0);
+    progressDialog->setValue(0);
+    progressDialog->show();
+
     int index = item->listWidget()->currentRow();
     long statusCode = apiClient.Download(index);
 
     QMessageBox messageBox(this);
     messageBox.setWindowModality(Qt::ApplicationModal);
     messageBox.setWindowFlag(Qt::FramelessWindowHint);
+
+    QMetaObject::invokeMethod(progressDialog, "reset");
+    delete progressDialog;
 
     if (statusCode == 200)
     {

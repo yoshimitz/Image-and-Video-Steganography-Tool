@@ -1339,16 +1339,13 @@ uint32_t Stego::getPvdEdgeSize(cv::Mat image)
     int nRows = magnitudes.rows;
     int nCols = magnitudes.cols * numChannels;
 
-    const double* magnitudeRow;
-    double* angleRow;
-    double magnitude;
-
+    const uchar* magnitudeRow;
     size_t channelColumn = currentColumn / 3;
     size_t channelRow = currentRow;
     uint32_t total = 0;
     for (;  channelRow < nRows - 1; channelRow++)
     {
-        magnitudeRow = magnitudes.ptr<const double>(channelRow);
+        magnitudeRow = magnitudes.ptr<const uchar>(channelRow);
 
         for (; channelColumn < nCols - 1; channelColumn += 2)
         {
@@ -1592,7 +1589,6 @@ void Stego::embedPvdPair(std::bitset<7> embeddingNumber, size_t numBits, uchar *
             }
             else if (newFirstValue == 0 && newSecondValue == 255)
             {
-                // TODO CHECK THIS
                 newFirstValue++;
             }
         }

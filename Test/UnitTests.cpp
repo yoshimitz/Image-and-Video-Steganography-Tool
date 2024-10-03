@@ -521,8 +521,8 @@ private slots:
             testEmbedImage773KB << smallImage << LSB << cannyEdgeDetection << false << emptyPassword;
 
         // 100
-        QTest::newRow("pdf_5MB-smallImage-PVD-NoEdgeDetection-NoEncryption") <<
-            testEmbedPdf5MB << smallImage << PVD << noEdgeDetection << false << emptyPassword;
+        QTest::newRow("zip_50MB-smallImage-PVD-NoEdgeDetection-NoEncryption") <<
+            testEmbedZip_50MB << smallImage << PVD << noEdgeDetection << false << emptyPassword;
 
         // 101
         QTest::newRow("mp3_5MB-smallImage-PVD-SobelEdgeDetection-NoEncryption") <<

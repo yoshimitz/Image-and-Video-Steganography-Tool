@@ -1,4 +1,5 @@
 #include "edgedetection.h"
+#include <QCoreApplication>
 #include <qdebug.h>
 
 const size_t CANNY_LOWER_THRESHOLD = 64;
@@ -42,6 +43,7 @@ EdgeDetection::EdgeDetection() {}
 StegoStatus EdgeDetection::DetectEdges(cv::Mat image, EdgeDetectionType edgeDetectionType)
 {
     StegoStatus status = StegoStatus::SUCCESS;
+    QCoreApplication::processEvents();
 
     if (edgeDetectionType == EdgeDetectionType::Canny)
     {
@@ -127,6 +129,7 @@ void EdgeDetection::calculatePixelMagnitudes(cv::Mat imageX, cv::Mat imageY)
         rowY = imageY.ptr<uchar>(i);
         rowMagnitude = magnitudes.ptr<double>(i);
         rowAngle = angles.ptr<double>(i);
+        QCoreApplication::processEvents();
 
         for (size_t j = 0, k = 0; j < nCols; j+= 3, k++)
         {
@@ -298,6 +301,8 @@ StegoStatus EdgeDetection::canny(cv::Mat image)
     {
         return status;
     }
+
+    QCoreApplication::processEvents();
 
     gradientMagnitude();
     thresholding();
