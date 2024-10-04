@@ -32,6 +32,8 @@ public:
     StegoStatus EncryptFile();
     StegoStatus DecryptFile();
 
+    uint64_t embedSize;
+
 private:
     static constexpr std::array<size_t, 256> pvdRangeTable = [] {
         std::array<size_t, 256> result {};

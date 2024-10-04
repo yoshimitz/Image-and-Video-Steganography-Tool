@@ -45,6 +45,7 @@ Stego::Stego(std::string filePath, std::string mediaPath, std::string algo, std:
     , password(password)
     , currentRow(0)
     , currentColumn(0)
+    , embedSize(0)
 {
     if (algo == "LSB")
     {
@@ -80,6 +81,7 @@ Stego::Stego(std::string mediaPath, bool bEncrypt, std::string password)
     , fileName("")
     , currentRow(0)
     , currentColumn(0)
+    , embedSize(0)
 {
 }
 
@@ -262,6 +264,7 @@ StegoStatus Stego::EncodeVideo()
 
     // Create stego media directory, if it does not exist
     std::filesystem::create_directory("stego_media");
+    std::filesystem::create_directory("stego_media/.temp");
 
     std::string mediaName = std::filesystem::path(this->mediaPath).filename().string();
     std::string stegoMediaPath = "stego_media/" + mediaName;
@@ -347,7 +350,7 @@ StegoStatus Stego::EncodeVideo()
         frameName.str("");
         frameName.clear();
         frameName << "frame_" << std::setw(6) << std::setfill('0') << frameCount << ".png";
-        cv::imwrite("stego_media/" + frameName.str(), frame);
+        cv::imwrite("stego_media/.temp/" + frameName.str(), frame);
         video >> frame;
 
         if (file.eof())
@@ -366,7 +369,7 @@ StegoStatus Stego::EncodeVideo()
             frameName.str("");
             frameName.clear();
             frameName << "frame_" << std::setw(6) << std::setfill('0') << frameCount << ".png";
-            cv::imwrite("stego_media/" + frameName.str(), frame);
+            cv::imwrite("stego_media/.temp/" + frameName.str(), frame);
             video >> frame;
         }
 
@@ -396,10 +399,11 @@ StegoStatus Stego::EncodeVideo()
     }
     else
     {
+        embedSize = file.tellg();
         status = StegoStatus::FILE_TOO_LARGE;
     }
 
-    std::string deleteCommand = "rm -f stego_media/frame_*.png";
+    std::string deleteCommand = "rm -f stego_media/.temp/frame_*.png";
     std::system(deleteCommand.c_str());
 
     video.release();
@@ -1396,7 +1400,13 @@ bool Stego::isFileTooLarge(Mat image, uint32_t numFrames)
         imageNumEncodeableBytes = getPvdEdgeSize(image);
     }
 
-    return fileSizeBytes + fileNameBytes > (imageNumEncodeableBytes * numFrames);
+    bool fileTooLarge = fileSizeBytes + fileNameBytes > (imageNumEncodeableBytes * numFrames);
+    if (fileTooLarge)
+    {
+        embedSize = imageNumEncodeableBytes * numFrames;
+    }
+
+    return fileTooLarge;
 }
 
 void Stego::calculatePvdEmbeddings()

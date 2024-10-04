@@ -190,7 +190,10 @@ void MainWindow::onEncodeGoButtonClicked()
 
     if (status == StegoStatus::FILE_TOO_LARGE)
     {
-        messageBox.setText("File is too large to encode.");
+        std::ostringstream fileSizeErrorStr;
+        fileSizeErrorStr.imbue(std::locale(""));
+        fileSizeErrorStr << "File is too large to encode. Max size for current media and algorithms is " << stego.embedSize << " bytes.";
+        messageBox.setText(QString::fromStdString(fileSizeErrorStr.str()));
         messageBox.exec();
         return;
     }
