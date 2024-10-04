@@ -59,7 +59,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         StegoStatus.h
         edgedetection.h edgedetection.cpp
         stegoapiclient.h stegoapiclient.cpp
-        LICENSE
+        LICENSES
         base64.hpp
 
     )
