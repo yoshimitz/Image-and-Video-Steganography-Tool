@@ -375,7 +375,7 @@ StegoStatus Stego::EncodeVideo()
 
         double videoFPS = video.get(CAP_PROP_FPS);
         std::ostringstream command;
-        command << "ffmpeg -loglevel error -y -framerate " << videoFPS << " -thread_queue_size 512 -i " << "stego_media/frame_%06d.png " << "-thread_queue_size 512 -i \"" << mediaPath << "\" "
+        command << "ffmpeg -loglevel error -y -framerate " << videoFPS << " -thread_queue_size 512 -i " << "stego_media/.temp/frame_%06d.png " << "-thread_queue_size 512 -i \"" << mediaPath << "\" "
             << "-map 0:v -map 1:a?:0 " << "-c:v ffv1 -pix_fmt bgr0 \"" << stegoMediaPath << "\"";
 
         std::future<int> future = std::async(std::launch::async, callSystem, command.str());
@@ -388,7 +388,7 @@ StegoStatus Stego::EncodeVideo()
         int status = future.get();
         if (status != 0)
         {
-            std::string deleteCommand = "rm -f stego_media/frame_*.png";
+            std::string deleteCommand = "rm -f stego_media/.temp/frame_*.png";
             std::system(deleteCommand.c_str());
 
             video.release();
